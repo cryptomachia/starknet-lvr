@@ -1,0 +1,44 @@
+services:
+  # TimescaleDB for the swap-level pipeline (M1+ deliverable; not exercised by the demo).
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_PASSWORD: change_me
+      POSTGRES_DB: lvr_lab
+    ports:
+      - "5432:5432"
+    volumes:
+      - tsdb_data:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+
+  # Pathfinder full-archive Starknet node — required for swap-level analysis.
+  # Comment in for M1+ work; resource-intensive (4TB NVMe recommended).
+  # pathfinder:
+  #   image: eqlabs/pathfinder:latest
+  #   environment:
+  #     PATHFINDER_ETHEREUM_API_URL: ${ETHEREUM_RPC_URL}
+  #     PATHFINDER_NETWORK: mainnet
+  #     PATHFINDER_DATA_DIRECTORY: /data
+  #   ports:
+  #     - "9545:9545"
+  #   volumes:
+  #     - pathfinder_data:/data
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 16G
+
+  # FastAPI dashboard (M3 deliverable).
+  api:
+    build: .
+    command: uvicorn lvr_lab.api.dashboard:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - timescaledb
+    environment:
+      DATABASE_URL: postgresql://postgres:change_me@timescaledb:5432/lvr_lab
+
+volumes:
+  tsdb_data:
+  # pathfinder_data:

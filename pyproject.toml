@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lvr-lab"
+version = "0.1.0"
+description = "LVR / sigma_fee research pipeline for Ekubo on Starknet — SNF Seed Grant"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Eddie Huang", email = "eddiehuang2886@gmail.com" }]
+requires-python = ">=3.10"
+keywords = ["starknet", "ekubo", "lvr", "amm", "concentrated-liquidity", "defi"]
+
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "certifi",
+]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110", "uvicorn>=0.29"]
+test = ["pytest>=8.0", "hypothesis>=6.100"]
+analysis = ["pandas>=2.2", "statsmodels>=0.14"]
+all = [
+    "lvr-lab[api]",
+    "lvr-lab[test]",
+    "lvr-lab[analysis]",
+]
+
+[project.urls]
+"Proposal" = "./proposal/snf-research-proposal.pdf"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --strict-markers"

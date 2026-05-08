@@ -1,0 +1,4 @@
+protocol,address,status,n_events,block_height
+ekubo,,scaffold,0,
+nostra,,scaffold,0,
+vesu,,scaffold,0,

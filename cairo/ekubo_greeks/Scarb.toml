@@ -1,0 +1,28 @@
+[package]
+name = "ekubo_greeks"
+version = "0.1.0"
+edition = "2024_07"
+description = "Greeks, IL, and instantaneous LVR for Ekubo concentrated-liquidity positions on Starknet."
+license = "Apache-2.0"
+authors = ["Eddie Huang <eddiehuang2886@gmail.com>"]
+homepage = "https://github.com/EkuboProtocol"
+keywords = ["ekubo", "starknet", "lvr", "amm", "concentrated-liquidity"]
+
+[dependencies]
+starknet = "2.8.0"
+# Note: alexandria_math could be added for verified sqrt; we instead use the
+# Newton-iteration refiner in math/fixed_point.cairo (`fp_sqrt_precise`),
+# which gives 18-decimal precision without external git deps — safer for
+# offline builds and audit-light review.
+
+[dev-dependencies]
+cairo_test = "2.8.0"
+
+[[target.starknet-contract]]
+casm = false
+sierra = true
+
+[lib]
+
+[scripts]
+test = "scarb cairo-test"

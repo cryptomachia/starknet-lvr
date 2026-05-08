@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LVR Lab — Ekubo LP economics on Starknet</title>
+  <meta name="description" content="Real-time σ_fee, σ_realized, and LVR wedge for every Ekubo pool on Starknet." />
+  <style>
+    :root {
+      --bg: #0e1116;
+      --bg-card: #161b22;
+      --fg: #e6edf3;
+      --fg-dim: #8b949e;
+      --accent: #58a6ff;
+      --green: #2ea043;
+      --yellow: #d29922;
+      --orange: #db6d28;
+      --red: #f85149;
+      --border: #30363d;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+    header {
+      padding: 24px 32px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 24px; font-weight: 700; }
+    header p { color: var(--fg-dim); font-size: 14px; margin-top: 4px; }
+    main { padding: 24px 32px; max-width: 1400px; margin: 0 auto; }
+    h2 { font-size: 18px; margin: 24px 0 12px; }
+    table {
+      width: 100%; border-collapse: collapse;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: #1b2028;
+      color: var(--fg-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+    tr:last-child td { border-bottom: none; }
+    .num { font-family: 'SF Mono', Menlo, Consolas, monospace; text-align: right; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-green  { background: rgba(46, 160, 67, 0.2); color: var(--green); }
+    .badge-yellow { background: rgba(210, 153, 34, 0.2); color: var(--yellow); }
+    .badge-orange { background: rgba(219, 109, 40, 0.2); color: var(--orange); }
+    .badge-red    { background: rgba(248, 81, 73, 0.2); color: var(--red); }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 16px 0 24px;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      padding: 16px;
+      border-radius: 6px;
+    }
+    .stat-label { color: var(--fg-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; font-family: 'SF Mono', Menlo, monospace; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer { padding: 24px 32px; color: var(--fg-dim); font-size: 13px; border-top: 1px solid var(--border); margin-top: 48px; }
+    .err { color: var(--red); font-family: monospace; font-size: 12px; }
+    .loading { color: var(--fg-dim); font-size: 13px; padding: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>LVR Lab</h1>
+    <p>Real-time σ_fee, σ_realized, and LVR wedge for every Ekubo pool on Starknet.</p>
+  </header>
+
+  <main>
+    <section id="overview">
+      <h2>Network overview</h2>
+      <div class="stat-grid" id="overview-stats">
+        <div class="stat-card"><div class="stat-label">Pools instrumented</div><div class="stat-value" id="stat-pools">—</div></div>
+        <div class="stat-card"><div class="stat-label">Aggregate TVL</div><div class="stat-value" id="stat-tvl">—</div></div>
+        <div class="stat-card"><div class="stat-label">Median wedge (volatile)</div><div class="stat-value" id="stat-median-wedge">—</div></div>
+        <div class="stat-card"><div class="stat-label">Stable-stable wedge</div><div class="stat-value" id="stat-stable-wedge">—</div></div>
+      </div>
+    </section>
+
+    <section id="pools">
+      <h2>Pool table</h2>
+      <div id="pools-loading" class="loading">Loading pool data...</div>
+      <table id="pools-table" style="display:none">
+        <thead>
+          <tr>
+            <th>Pool</th>
+            <th>AMM</th>
+            <th>TVL (USD)</th>
+            <th class="num">σ_fee</th>
+            <th class="num">σ_realized</th>
+            <th class="num">Wedge</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="pools-tbody"></tbody>
+      </table>
+    </section>
+
+    <section id="cross-amm" style="margin-top:32px">
+      <h2>Cross-AMM panel — Ekubo (Starknet) vs Uniswap v3 (Ethereum)</h2>
+      <div id="cross-loading" class="loading">Loading cross-AMM data...</div>
+      <table id="cross-table" style="display:none">
+        <thead>
+          <tr>
+            <th>AMM</th>
+            <th>Pool</th>
+            <th>TVL (USD)</th>
+            <th class="num">Fee yield (ann.)</th>
+          </tr>
+        </thead>
+        <tbody id="cross-tbody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer>
+    <p>Open-source · <a href="https://github.com/EkuboProtocol">Ekubo</a> · API: <code>/openapi.json</code> · Methodology: <a href="/docs/findings.md">findings.md</a></p>
+  </footer>
+
+  <script>
+    const API_BASE = window.LVR_API_BASE || '';
+
+    function fmtUSD(x) {
+      if (x === null || x === undefined) return '—';
+      if (x >= 1e9) return '$' + (x / 1e9).toFixed(2) + 'B';
+      if (x >= 1e6) return '$' + (x / 1e6).toFixed(2) + 'M';
+      if (x >= 1e3) return '$' + (x / 1e3).toFixed(1) + 'K';
+      return '$' + x.toFixed(2);
+    }
+    function fmtPct(x, digits = 2) {
+      if (x === null || x === undefined) return '—';
+      return (x * 100).toFixed(digits) + '%';
+    }
+    function fmtPctSigned(x, digits = 2) {
+      if (x === null || x === undefined) return '—';
+      const s = x >= 0 ? '+' : '';
+      return s + (x * 100).toFixed(digits) + ' pp';
+    }
+    function wedgeBadge(wedge) {
+      if (wedge === null || wedge === undefined) return '<span class="badge">—</span>';
+      if (wedge > 0.05)  return '<span class="badge badge-green">GREEN</span>';
+      if (wedge > -0.05) return '<span class="badge badge-yellow">YELLOW</span>';
+      if (wedge > -0.50) return '<span class="badge badge-orange">ORANGE</span>';
+      return '<span class="badge badge-red">RED</span>';
+    }
+
+    async function loadPools() {
+      try {
+        const [poolsRes, tsRes] = await Promise.all([
+          fetch(API_BASE + '/pools').then(r => r.json()),
+          // For each pool, optimistically fetch wedge — but for index, just use overview.
+          Promise.resolve(null),
+        ]);
+        const pools = poolsRes.pools || [];
+
+        // Fetch sigma_fee for each pool
+        const detailed = await Promise.all(
+          pools.map(async p => {
+            try {
+              const sf = await fetch(API_BASE + `/pools/${p.pool_id}/sigma_fee`).then(r => r.json());
+              const latest = (sf.series && sf.series[0]) || {};
+              return { ...p, ...latest };
+            } catch (_) {
+              return p;
+            }
+          })
+        );
+
+        // Render overview stats
+        const totalTvl = detailed.reduce((s, p) => s + (p.tvl_usd || 0), 0);
+        const volatile = detailed.filter(p => p.ref_kind && p.ref_kind !== 'stable');
+        const stable = detailed.filter(p => p.ref_kind === 'stable');
+        const wedges = volatile.map(p => p.wedge_yz).filter(w => w !== undefined && w !== null);
+        const stableWedges = stable.map(p => p.wedge_yz).filter(w => w !== undefined && w !== null);
+        const medianWedge = wedges.length ?
+          wedges.slice().sort((a,b) => a-b)[Math.floor(wedges.length/2)] : null;
+        const stableMedian = stableWedges.length ?
+          stableWedges.slice().sort((a,b) => a-b)[Math.floor(stableWedges.length/2)] : null;
+
+        document.getElementById('stat-pools').textContent = String(pools.length);
+        document.getElementById('stat-tvl').textContent = fmtUSD(totalTvl);
+        document.getElementById('stat-median-wedge').textContent = fmtPctSigned(medianWedge);
+        document.getElementById('stat-stable-wedge').textContent = fmtPctSigned(stableMedian);
+
+        // Render pool table
+        const tbody = document.getElementById('pools-tbody');
+        tbody.innerHTML = detailed.map(p => `
+          <tr>
+            <td>${p.display_name}</td>
+            <td>${p.amm}</td>
+            <td class="num">${fmtUSD(p.tvl_usd)}</td>
+            <td class="num">${fmtPct(p.sigma_fee_ann)}</td>
+            <td class="num">${fmtPct(p.sigma_realized_yz)}</td>
+            <td class="num">${fmtPctSigned(p.wedge_yz)}</td>
+            <td>${wedgeBadge(p.wedge_yz)}</td>
+          </tr>
+        `).join('');
+        document.getElementById('pools-loading').style.display = 'none';
+        document.getElementById('pools-table').style.display = '';
+      } catch (e) {
+        document.getElementById('pools-loading').innerHTML =
+          '<span class="err">Error loading pools: ' + e + '. API at ' + API_BASE + '/pools.</span>';
+      }
+    }
+
+    async function loadCrossAmm() {
+      try {
+        const data = await fetch(API_BASE + '/cross_amm/wedge_panel').then(r => r.json());
+        const ekubo = data.ekubo || [];
+        const v3 = data.uniswap_v3 || [];
+        const rows = [];
+        ekubo.slice(0, 6).forEach(p => {
+          rows.push(`
+            <tr>
+              <td>Ekubo</td>
+              <td>${p.pool}</td>
+              <td class="num">${fmtUSD(p.tvl_usd)}</td>
+              <td class="num">${fmtPct(p.sigma_fee_ann)}</td>
+            </tr>`);
+        });
+        v3.slice(0, 6).forEach(p => {
+          rows.push(`
+            <tr>
+              <td>Uniswap v3</td>
+              <td>${p.pair} ${p.tier}</td>
+              <td class="num">${fmtUSD(p.tvl_usd)}</td>
+              <td class="num">${(p.fee_yield_ann_pct).toFixed(2)}%</td>
+            </tr>`);
+        });
+        document.getElementById('cross-tbody').innerHTML = rows.join('');
+        document.getElementById('cross-loading').style.display = 'none';
+        document.getElementById('cross-table').style.display = '';
+      } catch (e) {
+        document.getElementById('cross-loading').innerHTML =
+          '<span class="err">Error: ' + e + '</span>';
+      }
+    }
+
+    loadPools();
+    loadCrossAmm();
+  </script>
+</body>
+</html>

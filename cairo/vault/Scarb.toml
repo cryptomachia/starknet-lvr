@@ -1,0 +1,21 @@
+[package]
+name = "lvr_lab_vault"
+version = "0.1.0"
+edition = "2024_07"
+description = "Reference delta-neutral LP vault for Ekubo on Starknet — testnet only."
+license = "Apache-2.0"
+authors = ["Eddie Huang <eddiehuang2886@gmail.com>"]
+keywords = ["ekubo", "starknet", "vault", "delta-neutral", "lvr"]
+
+[dependencies]
+starknet = "2.8.0"
+ekubo_greeks = { path = "../ekubo_greeks" }
+# openzeppelin = { git = "https://github.com/OpenZeppelin/cairo-contracts.git", tag = "v0.18.0" }
+
+[[target.starknet-contract]]
+casm = false
+sierra = true
+build-external-contracts = []
+
+[scripts]
+test = "scarb cairo-test"
